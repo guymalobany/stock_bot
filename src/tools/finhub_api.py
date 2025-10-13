@@ -48,9 +48,6 @@ def get_stock_data(symbol, start_date, end_date):
 
         print("General Market news...")
         general_news = client.general_news('general', min_id=0)
-        
-
-        print
         return {
             "symbol": symbol,
             "price": price,
