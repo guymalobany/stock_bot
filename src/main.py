@@ -1,7 +1,6 @@
-from tools.finhub_api import get_stock_data
-from setting import watchlist,test_stock
-from tools.ai import ask_nvidia_ai
-from time import sleep
+
+
+#todo unmark it when finish bot
 
 for stock in [test_stock]:
     stock_name = stock
@@ -9,3 +8,5 @@ for stock in [test_stock]:
     print(result)
     response = ask_nvidia_ai(result)
     print(response)
+
+

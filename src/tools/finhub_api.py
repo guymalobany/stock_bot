@@ -2,10 +2,45 @@ import finnhub
 import os
 from time import sleep
 from datetime import datetime, timedelta
+import pandas as pd
+from tabulate import tabulate
 
-# Sub Function's
+#Finhub Sub Function's
 def get_finhub_client():
     return finnhub.Client(api_key=os.getenv("FINHUB_API_KEY"))
+
+
+def check_stock_symbol(symbol):
+    client = get_finhub_client()
+    return client.symbol_lookup(symbol)
+
+def create_table_result_for_symbol_lookup(data):
+    """
+    Converts JSON response into a neat fixed-width plain table suitable for Telegram.
+    Only keeps 'description' and 'symbol'.
+    """
+    if not data.get('result'):
+        return "Sorry, no similar tickers found."
+    
+    df = pd.DataFrame(data['result'])
+    
+    if df.empty:
+        return "Sorry, no similar tickers found."
+    
+    # Keep only necessary columns
+    df = df[['description', 'symbol']]
+    
+    # Optional: reset index
+    df.index = range(1, len(df) + 1)
+    
+    # Convert to plain table using tabulate
+    plain_table = tabulate(df, headers=['Description', 'Symbol'], tablefmt='plain', showindex=False)
+    
+    # Wrap in Telegram monospace for neat display
+    telegram_table = f"```\n{plain_table}\n```"
+    
+    return telegram_table
+
 
 def get_stock_price(symbol):
     client = get_finhub_client()
@@ -24,6 +59,12 @@ def get_general_market_news():
     client.general_news('general', min_id=0)
 
 
+# Checking Tools
+def is_empty_price(data):
+    # Check if all numeric price fields are zero or None
+    numeric_fields = ['c', 'h', 'l', 'o', 'pc']
+    return all(data.get(f) in [0, None] for f in numeric_fields)
+
 # Main function's
 def get_stock_data(symbol, start_date, end_date):
         client = get_finhub_client()
@@ -38,6 +79,11 @@ def get_stock_data(symbol, start_date, end_date):
 
         print(f"Getting {symbol} price...")
         price = client.quote(symbol)
+        # checking if the price is empty, and return correct message
+        if is_empty_price(price):
+            similar_stock = create_table_result_for_symbol_lookup(check_stock_symbol(symbol))
+            result = f"Sorry, no stock with the name provided have found please see the bellow suggestion \n {similar_stock}."
+            return result
         print(price)
         print(f"Getting {symbol} news...")
         news = client.company_news(symbol, _from=from_date.isoformat(), to=to_date.isoformat())
@@ -106,3 +152,4 @@ def get_latest_company_news_last_two_weeks(symbol, limit=20):
         if isinstance(news, list) and limit:
                 return news[:limit]
         return news
+
