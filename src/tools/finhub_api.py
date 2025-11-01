@@ -4,11 +4,10 @@ from time import sleep
 from datetime import datetime, timedelta
 import pandas as pd
 from tabulate import tabulate
-
+import requests
 #Finhub Sub Function's
 def get_finhub_client():
     return finnhub.Client(api_key=os.getenv("FINHUB_API_KEY"))
-
 
 def check_stock_symbol(symbol):
     client = get_finhub_client()
@@ -21,26 +20,18 @@ def create_table_result_for_symbol_lookup(data):
     """
     if not data.get('result'):
         return "Sorry, no similar tickers found."
-    
     df = pd.DataFrame(data['result'])
-    
     if df.empty:
         return "Sorry, no similar tickers found."
-    
     # Keep only necessary columns
     df = df[['description', 'symbol']]
-    
     # Optional: reset index
     df.index = range(1, len(df) + 1)
-    
     # Convert to plain table using tabulate
     plain_table = tabulate(df, headers=['Description', 'Symbol'], tablefmt='plain', showindex=False)
-    
     # Wrap in Telegram monospace for neat display
     telegram_table = f"```\n{plain_table}\n```"
-    
     return telegram_table
-
 
 def get_stock_price(symbol):
     client = get_finhub_client()
@@ -58,12 +49,37 @@ def get_general_market_news():
     client = get_finhub_client()
     client.general_news('general', min_id=0)
 
+def market_fear_and_greed():
+    """
+    Fetch CNN Fear & Greed Index with browser headers to avoid 418.
+    """
+    url = "https://production.dataviz.cnn.io/index/fearandgreed/graphdata"
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                      "AppleWebKit/537.36 (KHTML, like Gecko) "
+                      "Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "application/json, text/javascript, */*; q=0.01",
+        "Referer": "https://money.cnn.com/data/fear-and-greed/"
+    }
 
+    try:
+        resp = requests.get(url, headers=headers, timeout=10)
+        resp.raise_for_status()
+        data = resp.json()
+        return {
+            #"score": data["fear_and_greed"]["score"],
+            "label": data["fear_and_greed"]["rating"]
+        }
+    except Exception as e:
+        return {"error": str(e)}
 # Checking Tools
 def is_empty_price(data):
     # Check if all numeric price fields are zero or None
     numeric_fields = ['c', 'h', 'l', 'o', 'pc']
     return all(data.get(f) in [0, None] for f in numeric_fields)
+
+
+
 
 # Main function's
 def get_stock_data(symbol, start_date, end_date):
@@ -92,6 +108,7 @@ def get_stock_data(symbol, start_date, end_date):
 
         print(f"Getting {symbol} insider sentiment...")
         insider = client.stock_insider_sentiment(symbol, from_date.isoformat(), to_date.isoformat())
+        print(insider)
         # Fallback: if empty, expand window to last 90 days
         try:
             empty = (
@@ -104,7 +121,9 @@ def get_stock_data(symbol, start_date, end_date):
                 insider = client.stock_insider_sentiment(symbol, alt_from, to_date.isoformat())
         except Exception:
             pass
-
+        print(f"Getting Market Fear & Greed...")
+        market_fear_and_greed_var = market_fear_and_greed()
+        print(market_fear_and_greed_var)
         print(f"Getting SPY price")
         spy = client.quote("SPY")
 
@@ -136,10 +155,9 @@ def get_stock_data(symbol, start_date, end_date):
             "Market": spy,
             "Market news": market_news,
             "insider_market": insider_market,
-            "General_market_news": general_news
+            "General_market_news": general_news,
+            "Market_fear_and_greed": market_fear_and_greed_var
         }
-
-
 
 def get_latest_company_news_last_two_weeks(symbol, limit=20):
         client = get_finhub_client()
@@ -152,4 +170,3 @@ def get_latest_company_news_last_two_weeks(symbol, limit=20):
         if isinstance(news, list) and limit:
                 return news[:limit]
         return news
-

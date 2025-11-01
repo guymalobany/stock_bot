@@ -1,4 +1,5 @@
 import os
+import html
 import asyncio
 import contextlib
 import logging
@@ -19,10 +20,12 @@ from telegram.helpers import escape_markdown
 from telegram.constants import ParseMode, ChatAction
 from telegram.error import BadRequest
 from ai import (
+    ask_nvidia_ai,
     prepare_stock_data,
     analyze_from_data,
     system_prompt,
-    short_system_prompt
+    short_system_prompt,
+    chat_system_prompt
 )
 from finhub_api import get_latest_company_news_last_two_weeks
 
@@ -141,7 +144,17 @@ async def echo_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Send a stock ticker like `AMD` or `NVDA` to get info, or go fuck yourself.", parse_mode=None, reply_markup=reply_menu())
         return
     if text == "🤔 DEEP DIVE":
-        await update.message.reply_text("Coming soon.", parse_mode=None, reply_markup=reply_menu())
+        await update.message.reply_text("Let's go!.", parse_mode=None, reply_markup=reply_menu())
+        symbol = (context.user_data.get("last_symbol") or "").upper()
+        if symbol:
+            # fetch stock info for deep dive
+            data = await asyncio.to_thread(prepare_stock_data, symbol)
+            await update.message.reply_text(f"🤖 Go Go Power Rangers\! \n Feeding the beast with {text} data ", reply_markup=reply_menu())
+            result = await asyncio.to_thread(analyze_from_data, data , system_prompt)  # type: ignore[name-defined]
+            await update.message.reply_text("Generating response!", parse_mode=ParseMode.MARKDOWN)
+            await update.message.reply_text(result, parse_mode=ParseMode.HTML)
+        else:
+            await update.message.reply_text("No stock provided, run a quick search before deep diving. 🤿", parse_mode=ParseMode.MARKDOWN)
         return
 
     # Detect stock ticker format
@@ -200,6 +213,10 @@ async def echo_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     await update.message.reply_text(safe_mdv2, parse_mode=ParseMode.MARKDOWN_V2)
                 except BadRequest:
                     await update.message.reply_text(accum, parse_mode=None)
+    elif raw_text.startswith("!"):
+        result = await asyncio.to_thread(ask_nvidia_ai, raw_text, chat_system_prompt) # type: ignore[name-defined]
+        safe_text = html.escape(result)
+        await update.message.reply_text  (result, parse_mode=ParseMode.HTML)
     else:
         await update.message.reply_text(f"🪞 You said: *{safe_text}*", reply_markup=reply_menu())
 
