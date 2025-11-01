@@ -51,31 +51,11 @@ def get_general_market_news():
     client.general_news('general', min_id=0)
 
 def market_fear_and_greed():
-    fear_and_greed_data = fear_and_greed.get().description
+    try:
+        fear_and_greed_data = fear_and_greed.get().description
+    except Exception as e:
+        return f"Error getting Fear and Greed Index: {e}"
     return f"Fear and Greed Index: {fear_and_greed_data}"
-    #"""
-    #Fetch CNN Fear & Greed Index with browser headers to avoid 418.
-    #"""
-    #url = "https://production.dataviz.cnn.io/index/fearandgreed/graphdata"
-    #headers = {
-    #    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-    #                  "AppleWebKit/537.36 (KHTML, like Gecko) "
-    #                  "Chrome/120.0.0.0 Safari/537.36",
-    #    "Accept": "application/json, text/javascript, */*; q=0.01",
-    #    "Referer": "https://money.cnn.com/data/fear-and-greed/"
-    #}
-#
-    #try:
-    #    resp = requests.get(url, headers=headers, timeout=10)
-    #    resp.raise_for_status()
-    #    data = resp.json()
-    #    return {
-    #        #"score": data["fear_and_greed"]["score"],
-    #        "label": data["fear_and_greed"]["rating"]
-    #    }
-    #except Exception as e:
-    #    return {"error": str(e)}
-# Checking Tools
 def is_empty_price(data):
     # Check if all numeric price fields are zero or None
     numeric_fields = ['c', 'h', 'l', 'o', 'pc']
