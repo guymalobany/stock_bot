@@ -21,6 +21,7 @@ from telegram.constants import ParseMode, ChatAction
 from telegram.error import BadRequest
 from ai import (
     ask_nvidia_ai,
+    ask_nvidia_ai_stream,
     prepare_stock_data,
     analyze_from_data,
     system_prompt,
@@ -136,7 +137,11 @@ async def echo_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     text_out = f"No recent news found for {symbol}."
             except Exception as exc:
                 text_out = f"Failed to fetch news for {symbol}: {exc}"
-            await update.message.reply_text(text_out, parse_mode=None, reply_markup=reply_menu())
+            try:            
+                await update.message.reply_text(text_out, parse_mode=None, reply_markup=reply_menu())
+            except Exception as e:
+                logging.error(f"Error sending Telegram message Trying again")
+                await update.message.reply_text(text_out, parse_mode=None, reply_markup=reply_menu())
         else:
             await update.message.reply_text("Send a stock ticker (e.g. AMD) first, then press ‘Latest 2w News’.", parse_mode=None, reply_markup=reply_menu())
         return
@@ -155,7 +160,7 @@ async def echo_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(result, parse_mode=ParseMode.HTML)
         else:
             await update.message.reply_text("No stock provided, run a quick search before deep diving. 🤿", parse_mode=ParseMode.MARKDOWN)
-        return
+        return 
 
     # Detect stock ticker format
     if text.isalpha() and 1 <= len(text) <= 5:
@@ -213,10 +218,28 @@ async def echo_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     await update.message.reply_text(safe_mdv2, parse_mode=ParseMode.MARKDOWN_V2)
                 except BadRequest:
                     await update.message.reply_text(accum, parse_mode=None)
-    elif raw_text.startswith("!"):
-        result = await asyncio.to_thread(ask_nvidia_ai, raw_text, chat_system_prompt) # type: ignore[name-defined]
-        safe_text = html.escape(result)
-        await update.message.reply_text  (result, parse_mode=ParseMode.HTML)
+    elif raw_text.startswith("!"): 
+        # Send a placeholder/loading message to be edited
+        loading_msg = await update.message.reply_text("🤖 Generating response...", parse_mode=ParseMode.HTML)
+        ai_response = ""
+        last_edit_time = asyncio.get_event_loop().time()
+        edit_interval = 0.3  # seconds between edits to prevent rate limits
+        try:
+            stream = await asyncio.to_thread(ask_nvidia_ai_stream, raw_text, chat_system_prompt)  # type: ignore[name-defined]
+            for token in stream:
+                ai_response += token
+                now = asyncio.get_event_loop().time()
+                if now - last_edit_time > edit_interval:
+                    try:
+                        await loading_msg.edit_text(ai_response or "🤖 Generating response...", parse_mode=ParseMode.HTML)
+                        last_edit_time = now
+                    except Exception as e:
+                        # Optionally log or handle edit errors due to Telegram rate limits
+                        pass
+            # Final edit to ensure all content is updated
+            #await loading_msg.edit_text(ai_response, parse_mode=ParseMode.HTML)
+        except Exception as e:
+            await loading_msg.edit_text(f"⚠️ Error generating response: {e}", parse_mode=ParseMode.HTML)
     else:
         await update.message.reply_text(f"🪞 You said: *{safe_text}*", reply_markup=reply_menu())
 

@@ -5,6 +5,8 @@ import os
 import json
 import asyncio
 from datetime import datetime, timedelta
+
+from telegram.ext.filters import TEXT
 from finhub_api import get_stock_data
 
 chat_system_prompt = """You are StockBot, a concise, factual financial assistant designed for interactive chat after the initial stock rating has been generated.
@@ -150,6 +152,12 @@ def ask_nvidia_ai(user_input,system_prompt):
     chain = template | client | StrOutputParser()
     return chain.invoke({"user_input": _to_user_input(user_input)}).strip()
 
+def ask_nvidia_ai_stream(user_input,system_prompt):
+    template = _build_template(system_prompt)
+    client = get_nvidia_ai_client()
+    chain = template | client | StrOutputParser()
+    for text in chain.stream({"user_input": _to_user_input(user_input)}):
+        yield text
 
 def prepare_stock_data(symbol: str):
     to_date = datetime.utcnow().date()
