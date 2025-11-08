@@ -127,7 +127,7 @@ def get_nvidia_ai_client():
         model="meta/llama-3.1-70b-instruct",  # consider switching to a known-good model for your account
         api_key=os.getenv("NVIDIA_API_KEY"),
         temperature=0.0,
-        max_tokens=800,
+        max_tokens=800
     )
 
 

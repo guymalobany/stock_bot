@@ -219,11 +219,12 @@ async def echo_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 except BadRequest:
                     await update.message.reply_text(accum, parse_mode=None)
     elif raw_text.startswith("!"): 
+        typing_task = asyncio.create_task(_send_typing(update.effective_chat.id, context))
         # Send a placeholder/loading message to be edited
         loading_msg = await update.message.reply_text("🤖 Generating response...", parse_mode=ParseMode.HTML)
         ai_response = ""
         last_edit_time = asyncio.get_event_loop().time()
-        edit_interval = 0.3  # seconds between edits to prevent rate limits
+        edit_interval = 0.2  # seconds between edits to prevent rate limits
         try:
             stream = await asyncio.to_thread(ask_nvidia_ai_stream, raw_text, chat_system_prompt)  # type: ignore[name-defined]
             for token in stream:
@@ -236,6 +237,7 @@ async def echo_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     except Exception as e:
                         # Optionally log or handle edit errors due to Telegram rate limits
                         pass
+            typing_task.cancel()
             # Final edit to ensure all content is updated
             #await loading_msg.edit_text(ai_response, parse_mode=ParseMode.HTML)
         except Exception as e:
